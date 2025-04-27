@@ -4,6 +4,8 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/des"
+	"encoding/base64"
+	"encoding/hex"
 
 	"github.com/riete/convert/str"
 )
@@ -21,12 +23,24 @@ type CBCEncrypter struct {
 	cipher cipher.Block
 }
 
-func (c *CBCEncrypter) Encrypt(plaintext string) ([]byte, error) {
+func (c *CBCEncrypter) Encrypt(plaintext string) []byte {
 	paddedText := PKCS5Padding(str.ToBytes(plaintext), c.cipher.BlockSize())
 	encrypter := cipher.NewCBCEncrypter(c.cipher, c.iv())
 	ciphertext := make([]byte, len(paddedText))
 	encrypter.CryptBlocks(ciphertext, paddedText)
-	return ciphertext, nil
+	return ciphertext
+}
+
+func (c *CBCEncrypter) EncryptToString(plaintext string) string {
+	return str.FromBytes(c.Encrypt(plaintext))
+}
+
+func (c *CBCEncrypter) EncryptToHexString(plaintext string) string {
+	return hex.EncodeToString(c.Encrypt(plaintext))
+}
+
+func (c *CBCEncrypter) EncryptToBase64String(plaintext string) string {
+	return base64.StdEncoding.EncodeToString(c.Encrypt(plaintext))
 }
 
 type CBCDecrypter struct {
@@ -34,11 +48,25 @@ type CBCDecrypter struct {
 	cipher cipher.Block
 }
 
-func (c *CBCDecrypter) Decrypt(ciphertext string) (string, error) {
+func (c *CBCDecrypter) Decrypt(ciphertext []byte) string {
 	decrypter := cipher.NewCBCDecrypter(c.cipher, c.iv())
 	plaintext := make([]byte, len(ciphertext))
-	decrypter.CryptBlocks(plaintext, str.ToBytes(ciphertext))
-	return str.FromBytes(PKCS5UnPadding(plaintext)), nil
+	decrypter.CryptBlocks(plaintext, ciphertext)
+	return str.FromBytes(PKCS5UnPadding(plaintext))
+}
+
+func (c *CBCDecrypter) DecryptFromString(ciphertext string) string {
+	return c.Decrypt(str.ToBytes(ciphertext))
+}
+
+func (c *CBCDecrypter) DecryptFromHexString(ciphertext string) string {
+	decoded, _ := hex.DecodeString(ciphertext)
+	return c.Decrypt(decoded)
+}
+
+func (c *CBCDecrypter) DecryptFromBase64String(ciphertext string) string {
+	decoded, _ := base64.StdEncoding.DecodeString(ciphertext)
+	return c.Decrypt(decoded)
 }
 
 type CBCEncryptDecrypter struct {
