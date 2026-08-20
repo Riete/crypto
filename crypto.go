@@ -1,11 +1,8 @@
 package crypto
 
-type Encrypter interface {
+type Crypter interface {
 	Encrypt(string) ([]byte, error)
-	EncryptToString(string, Encoder) (string, error)
-}
-
-type Decrypter interface {
+	EncryptToString(string) (string, error)
 	Decrypt([]byte) (string, error)
-	DecryptFromString(string, Decoder) (string, error)
+	DecryptFromString(string) (string, error)
 }

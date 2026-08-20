@@ -4,21 +4,31 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/des"
-	"encoding/base64"
-	"encoding/hex"
 
 	"github.com/riete/convert/str"
 )
 
 type Encoder func([]byte) string
-
-var HexEncoder Encoder = hex.EncodeToString
-var Base64Encoder Encoder = base64.StdEncoding.EncodeToString
-
 type Decoder func(string) ([]byte, error)
+type CipherCodec struct {
+	encoder Encoder
+	decoder Decoder
+}
 
-var HexDecoder Decoder = hex.DecodeString
-var Base64Decoder Decoder = base64.StdEncoding.DecodeString
+func (c *CipherCodec) Encode(b []byte) string {
+	return c.encoder(b)
+}
+
+func (c *CipherCodec) Decode(s string) ([]byte, error) {
+	return c.decoder(s)
+}
+
+func NewCipherCodec(encoder Encoder, decoder Decoder) *CipherCodec {
+	return &CipherCodec{
+		encoder: encoder,
+		decoder: decoder,
+	}
+}
 
 // NewAESCipher creates an AES cipher. It panics if key length is not 16, 24, or 32 bytes.
 func NewAESCipher(key string) cipher.Block {
