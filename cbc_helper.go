@@ -25,7 +25,7 @@ func PKCS7Padding(plaintext []byte, blockSize int) []byte {
 
 func PKCS7Unpadding(data []byte, blockSize int) ([]byte, error) {
 	if len(data) == 0 || blockSize <= 0 || len(data)%blockSize != 0 {
-		return nil, errors.New("pksc7: invalid padding length")
+		return nil, errors.New("pkcs7: invalid padding length")
 	}
 
 	padding := int(data[len(data)-1])
@@ -34,7 +34,7 @@ func PKCS7Unpadding(data []byte, blockSize int) ([]byte, error) {
 	}
 	for _, value := range data[len(data)-padding:] {
 		if int(value) != padding {
-			return nil, errors.New("pksc7: invalid padding")
+			return nil, errors.New("pkcs7: invalid padding")
 		}
 	}
 	return data[:len(data)-padding], nil

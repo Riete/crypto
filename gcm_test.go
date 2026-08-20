@@ -2,19 +2,30 @@ package crypto
 
 import (
 	"bytes"
+	"crypto/cipher"
 	"testing"
 )
+
+func newGCMTestCrypter(t *testing.T, block cipher.Block, additionalData []byte) (Encrypter, Decrypter) {
+	t.Helper()
+	encrypter, err := NewGCMEncrypter(block, additionalData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decrypter, err := NewGCMDecrypter(block, additionalData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return encrypter, decrypter
+}
 
 func TestGCMEncryptDecrypt(t *testing.T) {
 	block := NewAESCipher("abcdwkjidjfkovdf")
 
-	crypter, err := NewGCMEncryptDecrypter(block, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	encrypter, decrypter := newGCMTestCrypter(t, block, nil)
 
 	plaintext := "hello GCM"
-	ciphertext, err := crypter.Encrypt(plaintext)
+	ciphertext, err := encrypter.Encrypt(plaintext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -22,7 +33,7 @@ func TestGCMEncryptDecrypt(t *testing.T) {
 		t.Fatalf("unexpected ciphertext length: got %d", len(ciphertext))
 	}
 
-	decrypted, err := crypter.Decrypt(ciphertext)
+	decrypted, err := decrypter.Decrypt(ciphertext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +42,7 @@ func TestGCMEncryptDecrypt(t *testing.T) {
 		t.Fatalf("decrypted plaintext mismatch: got %q, want %q", decrypted, plaintext)
 	}
 
-	secondCiphertext, err := crypter.Encrypt(plaintext)
+	secondCiphertext, err := encrypter.Encrypt(plaintext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,19 +80,42 @@ func TestGCMEncryptDecryptWithEncoding(t *testing.T) {
 func TestGCMRejectsModifiedCiphertext(t *testing.T) {
 	block := NewAESCipher("abcdwkjidjfkovdf")
 
-	crypter, err := NewGCMEncryptDecrypter(block, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	encrypter, decrypter := newGCMTestCrypter(t, block, nil)
 
-	ciphertext, err := crypter.Encrypt("hello GCM")
+	ciphertext, err := encrypter.Encrypt("hello GCM")
 	if err != nil {
 		t.Fatal(err)
 	}
 	ciphertext[len(ciphertext)-1] ^= 1
 
-	if _, err := crypter.DecryptFromString(string(ciphertext), nil); err == nil {
+	if _, err := decrypter.Decrypt(ciphertext); err == nil {
 		t.Fatal("modified ciphertext was accepted")
+	}
+}
+
+func TestGCMRejectsShortCiphertext(t *testing.T) {
+	block := NewAESCipher("abcdwkjidjfkovdf")
+	_, decrypter := newGCMTestCrypter(t, block, nil)
+
+	for _, ciphertext := range [][]byte{nil, make([]byte, 27)} {
+		if _, err := decrypter.Decrypt(ciphertext); err == nil {
+			t.Fatalf("short ciphertext was accepted: %x", ciphertext)
+		}
+	}
+}
+
+func TestGCMRejectsModifiedNonce(t *testing.T) {
+	block := NewAESCipher("abcdwkjidjfkovdf")
+	encrypter, decrypter := newGCMTestCrypter(t, block, nil)
+
+	ciphertext, err := encrypter.Encrypt("hello GCM")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ciphertext[0] ^= 1
+
+	if _, err := decrypter.Decrypt(ciphertext); err == nil {
+		t.Fatal("modified nonce was accepted")
 	}
 }
 
@@ -89,16 +123,13 @@ func TestGCMAdditionalData(t *testing.T) {
 	block := NewAESCipher("abcdwkjidjfkovdf")
 
 	additionalData := []byte("version=1;user=42")
-	crypter, err := NewGCMEncryptDecrypter(block, additionalData)
-	if err != nil {
-		t.Fatal(err)
-	}
+	encrypter, decrypter := newGCMTestCrypter(t, block, additionalData)
 
-	ciphertext, err := crypter.Encrypt("hello GCM")
+	ciphertext, err := encrypter.EncryptToString("hello GCM", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	plaintext, err := crypter.DecryptFromString(string(ciphertext), nil)
+	plaintext, err := decrypter.DecryptFromString(ciphertext, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,5 +143,24 @@ func TestGCMAdditionalData(t *testing.T) {
 	}
 	if _, err := wrongCrypter.DecryptFromString(string(ciphertext), nil); err == nil {
 		t.Fatal("ciphertext was accepted with incorrect additional data")
+	}
+}
+
+func TestGCMDecryptFromStringReturnsDecodeError(t *testing.T) {
+	block := NewAESCipher("abcdwkjidjfkovdf")
+	decrypter, err := NewGCMDecrypter(block, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := decrypter.DecryptFromString("not-valid-base64", Base64Decoder); err == nil {
+		t.Fatal("invalid encoded ciphertext was accepted")
+	}
+}
+
+func TestGCMRequiresAESBlock(t *testing.T) {
+	block := NewDESCipher("12345678")
+	if _, err := NewGCMEncrypter(block, nil); err == nil {
+		t.Fatal("non-AES block was accepted")
 	}
 }

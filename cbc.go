@@ -16,26 +16,24 @@ var FixedIV = func(iv string) IVFunc {
 	}
 }
 
-func randomIV(size int) IVFunc {
+var randomIV = func(size int) IVFunc {
 	return func() []byte {
 		iv := make([]byte, size)
-		if _, err := rand.Read(iv); err != nil {
-			panic(err)
-		}
+		_, _ = rand.Read(iv)
 		return iv
 	}
 }
 
-type CBCEncrypter struct {
+type CBCCrypter struct {
 	iv     IVFunc
 	cipher cipher.Block
 }
 
-func (c *CBCEncrypter) Encrypt(plaintext string) ([]byte, error) {
+func (c *CBCCrypter) Encrypt(plaintext string) ([]byte, error) {
 	blockSize := c.cipher.BlockSize()
 	iv := c.iv()
 	if len(iv) != blockSize {
-		return nil, errors.New("crypto.CBCEncrypter: IV length must equal block size")
+		return nil, errors.New("crypto.CBCCrypter: IV length must equal block size")
 	}
 	paddedText := PKCS7Padding(str.ToBytes(plaintext), blockSize)
 	encrypter := cipher.NewCBCEncrypter(c.cipher, iv)
@@ -44,22 +42,18 @@ func (c *CBCEncrypter) Encrypt(plaintext string) ([]byte, error) {
 	return PrependIVToCiphertext(iv, ciphertext), nil
 }
 
-func (c *CBCEncrypter) EncryptToString(plaintext string, encoder Encoder) (string, error) {
+func (c *CBCCrypter) EncryptToString(plaintext string, encoder Encoder) (string, error) {
 	ciphertext, err := c.Encrypt(plaintext)
 	if err != nil {
 		return "", err
 	}
 	if encoder == nil {
-		encoder = str.FromBytes
+		encoder = Base64Encoder
 	}
 	return encoder(ciphertext), nil
 }
 
-type CBCDecrypter struct {
-	cipher cipher.Block
-}
-
-func (c *CBCDecrypter) Decrypt(ciphertext []byte) (string, error) {
+func (c *CBCCrypter) Decrypt(ciphertext []byte) (string, error) {
 	blockSize := c.cipher.BlockSize()
 	iv, ciphertext, err := ExtractIVAndCiphertext(ciphertext, blockSize)
 	if err != nil {
@@ -78,9 +72,9 @@ func (c *CBCDecrypter) Decrypt(ciphertext []byte) (string, error) {
 	return str.FromBytes(unpaddedText), nil
 }
 
-func (c *CBCDecrypter) DecryptFromString(ciphertext string, decoder Decoder) (string, error) {
+func (c *CBCCrypter) DecryptFromString(ciphertext string, decoder Decoder) (string, error) {
 	if decoder == nil {
-		return c.Decrypt(str.ToBytes(ciphertext))
+		decoder = Base64Decoder
 	}
 	decoded, err := decoder(ciphertext)
 	if err != nil {
@@ -89,22 +83,13 @@ func (c *CBCDecrypter) DecryptFromString(ciphertext string, decoder Decoder) (st
 	return c.Decrypt(decoded)
 }
 
-type CBCEncryptDecrypter struct {
-	*CBCEncrypter
-	*CBCDecrypter
-}
-
-func NewCBCEncrypter(cipher cipher.Block, iv IVFunc) *CBCEncrypter {
+func NewCBCEncrypter(cipher cipher.Block, iv IVFunc) Encrypter {
 	if iv == nil {
 		iv = randomIV(cipher.BlockSize())
 	}
-	return &CBCEncrypter{cipher: cipher, iv: iv}
+	return &CBCCrypter{cipher: cipher, iv: iv}
 }
 
-func NewCBCDecrypter(cipher cipher.Block) *CBCDecrypter {
-	return &CBCDecrypter{cipher: cipher}
-}
-
-func NewCBCEncryptDecrypter(encrypter *CBCEncrypter, decrypter *CBCDecrypter) *CBCEncryptDecrypter {
-	return &CBCEncryptDecrypter{encrypter, decrypter}
+func NewCBCDecrypter(cipher cipher.Block) Decrypter {
+	return &CBCCrypter{cipher: cipher}
 }

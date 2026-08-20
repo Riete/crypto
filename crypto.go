@@ -9,8 +9,3 @@ type Decrypter interface {
 	Decrypt([]byte) (string, error)
 	DecryptFromString(string, Decoder) (string, error)
 }
-
-type EncryptDecrypter interface {
-	Encrypter
-	Decrypter
-}

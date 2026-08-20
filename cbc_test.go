@@ -1,6 +1,10 @@
 package crypto
 
-import "testing"
+import (
+	"bytes"
+	"crypto/cipher"
+	"testing"
+)
 
 func TestCBCEncryptDecrypt(t *testing.T) {
 	cipher := NewAESCipher("abcdwkjidjfkovdf")
@@ -72,21 +76,81 @@ func TestCBCEncryptDecryptWithRandomIV(t *testing.T) {
 	}
 }
 
+func TestCBCEncryptDecryptWithDefaultEncoding(t *testing.T) {
+	block := NewAESCipher("abcdwkjidjfkovdf")
+	encrypter := NewCBCEncrypter(block, FixedIV("abcdwxxidjfkovdf"))
+	decrypter := NewCBCDecrypter(block)
+
+	plaintext := "hello CBC"
+	ciphertext, err := encrypter.EncryptToString(plaintext, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := Base64Decoder(ciphertext)
+	if err != nil {
+		t.Fatalf("default ciphertext is not Base64: %v", err)
+	}
+	if len(decoded) != block.BlockSize()*2 {
+		t.Fatalf("unexpected decoded ciphertext length: got %d", len(decoded))
+	}
+
+	decrypted, err := decrypter.DecryptFromString(ciphertext, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decrypted != plaintext {
+		t.Fatalf("decrypted plaintext mismatch: got %q, want %q", decrypted, plaintext)
+	}
+}
+
 func TestCBCRejectsInvalidCiphertext(t *testing.T) {
 	block := NewAESCipher("abcdwkjidjfkovdf")
 	decrypter := NewCBCDecrypter(block)
 
-	for _, ciphertext := range [][]byte{nil, []byte{1}} {
+	for _, ciphertext := range [][]byte{nil, []byte{1}, make([]byte, block.BlockSize()), make([]byte, block.BlockSize()+1)} {
 		if _, err := decrypter.Decrypt(ciphertext); err == nil {
 			t.Fatalf("invalid ciphertext was accepted: %x", ciphertext)
 		}
 	}
 }
 
+func TestCBCRejectsInvalidIVLength(t *testing.T) {
+	block := NewAESCipher("abcdwkjidjfkovdf")
+	encrypter := NewCBCEncrypter(block, func() []byte { return []byte("short") })
+
+	if _, err := encrypter.Encrypt("hello CBC"); err == nil {
+		t.Fatal("invalid IV length was accepted")
+	}
+}
+
 func TestCBCRejectsInvalidPadding(t *testing.T) {
-	data := []byte("123456789012345\x02")
-	if _, err := PKCS7Unpadding(data, 16); err == nil {
+	block := NewAESCipher("abcdwkjidjfkovdf")
+	iv := []byte("abcdwxxidjfkovdf")
+	invalidPaddedText := []byte("123456789012345\x02")
+	cbcCiphertext := make([]byte, len(invalidPaddedText))
+	cipher.NewCBCEncrypter(block, iv).CryptBlocks(cbcCiphertext, invalidPaddedText)
+	ciphertext := PrependIVToCiphertext(iv, cbcCiphertext)
+
+	if _, err := NewCBCDecrypter(block).Decrypt(ciphertext); err == nil {
 		t.Fatal("invalid padding was accepted")
+	}
+}
+
+func TestCBCIVHelpers(t *testing.T) {
+	iv := []byte("1234567890123456")
+	ciphertext := []byte("ciphertext")
+	combined := PrependIVToCiphertext(iv, ciphertext)
+
+	gotIV, gotCiphertext, err := ExtractIVAndCiphertext(combined, len(iv))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(gotIV, iv) || !bytes.Equal(gotCiphertext, ciphertext) {
+		t.Fatalf("unexpected extracted values: iv=%q, ciphertext=%q", gotIV, gotCiphertext)
+	}
+
+	if _, _, err := ExtractIVAndCiphertext(ciphertext, len(iv)); err == nil {
+		t.Fatal("missing IV was accepted")
 	}
 }
 
@@ -94,8 +158,8 @@ func TestCBCDecryptFromStringReturnsDecodeError(t *testing.T) {
 	cipher := NewAESCipher("abcdwkjidjfkovdf")
 
 	decrypter := NewCBCDecrypter(cipher)
-	if _, err := decrypter.DecryptFromString("not-valid-hex", HexDecoder); err == nil {
-		t.Fatal("invalid encoded ciphertext was accepted")
+	if _, err := decrypter.DecryptFromString("not-valid-base64", nil); err == nil {
+		t.Fatal("invalid Base64 ciphertext was accepted")
 	}
 }
 

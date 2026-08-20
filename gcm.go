@@ -22,7 +22,7 @@ func (c *GCMCrypter) EncryptToString(plaintext string, encoder Encoder) (string,
 		return "", err
 	}
 	if encoder == nil {
-		encoder = str.FromBytes
+		encoder = Base64Encoder
 	}
 	return encoder(ciphertext), nil
 }
@@ -37,7 +37,7 @@ func (c *GCMCrypter) Decrypt(ciphertext []byte) (string, error) {
 
 func (c *GCMCrypter) DecryptFromString(ciphertext string, decoder Decoder) (string, error) {
 	if decoder == nil {
-		return c.Decrypt(str.ToBytes(ciphertext))
+		decoder = Base64Decoder
 	}
 	decoded, err := decoder(ciphertext)
 	if err != nil {
@@ -62,9 +62,5 @@ func NewGCMEncrypter(block cipher.Block, additionalData []byte) (Encrypter, erro
 }
 
 func NewGCMDecrypter(block cipher.Block, additionalData []byte) (Decrypter, error) {
-	return newGCM(block, additionalData)
-}
-
-func NewGCMEncryptDecrypter(block cipher.Block, additionalData []byte) (EncryptDecrypter, error) {
 	return newGCM(block, additionalData)
 }
