@@ -1,11 +1,9 @@
 package crypto
 
 import (
-	"crypto/aes"
 	"crypto/cipher"
-	"crypto/des"
-	"encoding/base64"
-	"encoding/hex"
+	"crypto/rand"
+	"errors"
 
 	"github.com/riete/convert/str"
 )
@@ -18,57 +16,77 @@ var FixedIV = func(iv string) IVFunc {
 	}
 }
 
-type Encoder func([]byte) string
-
-var HexEncoder Encoder = hex.EncodeToString
-var Base64Encoder Encoder = base64.StdEncoding.EncodeToString
-
-type Decoder func(string) ([]byte, error)
-
-var HexDecoder Decoder = hex.DecodeString
-var Base64Decoder Decoder = base64.StdEncoding.DecodeString
+func randomIV(size int) IVFunc {
+	return func() []byte {
+		iv := make([]byte, size)
+		if _, err := rand.Read(iv); err != nil {
+			panic(err)
+		}
+		return iv
+	}
+}
 
 type CBCEncrypter struct {
 	iv     IVFunc
 	cipher cipher.Block
 }
 
-func (c *CBCEncrypter) Encrypt(plaintext string) []byte {
-	paddedText := PKCS5Padding(str.ToBytes(plaintext), c.cipher.BlockSize())
-	encrypter := cipher.NewCBCEncrypter(c.cipher, c.iv())
+func (c *CBCEncrypter) Encrypt(plaintext string) ([]byte, error) {
+	blockSize := c.cipher.BlockSize()
+	iv := c.iv()
+	if len(iv) != blockSize {
+		return nil, errors.New("crypto.CBCEncrypter: IV length must equal block size")
+	}
+	paddedText := PKCS7Padding(str.ToBytes(plaintext), blockSize)
+	encrypter := cipher.NewCBCEncrypter(c.cipher, iv)
 	ciphertext := make([]byte, len(paddedText))
 	encrypter.CryptBlocks(ciphertext, paddedText)
-	return ciphertext
+	return PrependIVToCiphertext(iv, ciphertext), nil
 }
 
-func (c *CBCEncrypter) EncryptToString(plaintext string, encoder Encoder) string {
+func (c *CBCEncrypter) EncryptToString(plaintext string, encoder Encoder) (string, error) {
+	ciphertext, err := c.Encrypt(plaintext)
+	if err != nil {
+		return "", err
+	}
 	if encoder == nil {
 		encoder = str.FromBytes
 	}
-	return encoder(c.Encrypt(plaintext))
+	return encoder(ciphertext), nil
 }
 
 type CBCDecrypter struct {
-	iv     IVFunc
 	cipher cipher.Block
 }
 
-func (c *CBCDecrypter) Decrypt(ciphertext []byte) string {
-	decrypter := cipher.NewCBCDecrypter(c.cipher, c.iv())
+func (c *CBCDecrypter) Decrypt(ciphertext []byte) (string, error) {
+	blockSize := c.cipher.BlockSize()
+	iv, ciphertext, err := ExtractIVAndCiphertext(ciphertext, blockSize)
+	if err != nil {
+		return "", err
+	}
+	if len(ciphertext) == 0 || len(ciphertext)%blockSize != 0 {
+		return "", errors.New("crypto.CBCDecrypter: invalid CBC ciphertext length")
+	}
+	decrypter := cipher.NewCBCDecrypter(c.cipher, iv)
 	plaintext := make([]byte, len(ciphertext))
 	decrypter.CryptBlocks(plaintext, ciphertext)
-	return str.FromBytes(PKCS5UnPadding(plaintext))
+	unpaddedText, err := PKCS7Unpadding(plaintext, blockSize)
+	if err != nil {
+		return "", err
+	}
+	return str.FromBytes(unpaddedText), nil
 }
 
 func (c *CBCDecrypter) DecryptFromString(ciphertext string, decoder Decoder) (string, error) {
 	if decoder == nil {
-		return c.Decrypt(str.ToBytes(ciphertext)), nil
+		return c.Decrypt(str.ToBytes(ciphertext))
 	}
 	decoded, err := decoder(ciphertext)
 	if err != nil {
 		return "", err
 	}
-	return c.Decrypt(decoded), nil
+	return c.Decrypt(decoded)
 }
 
 type CBCEncryptDecrypter struct {
@@ -76,22 +94,15 @@ type CBCEncryptDecrypter struct {
 	*CBCDecrypter
 }
 
-// NewAESCipher key length must be 16 or 24 or 32
-func NewAESCipher(key string) (cipher.Block, error) {
-	return aes.NewCipher(str.ToBytes(key))
-}
-
-// NewDESCipher key length must be 8
-func NewDESCipher(key string) (cipher.Block, error) {
-	return des.NewCipher(str.ToBytes(key))
-}
-
 func NewCBCEncrypter(cipher cipher.Block, iv IVFunc) *CBCEncrypter {
+	if iv == nil {
+		iv = randomIV(cipher.BlockSize())
+	}
 	return &CBCEncrypter{cipher: cipher, iv: iv}
 }
 
-func NewCBCDecrypter(cipher cipher.Block, iv IVFunc) *CBCDecrypter {
-	return &CBCDecrypter{cipher: cipher, iv: iv}
+func NewCBCDecrypter(cipher cipher.Block) *CBCDecrypter {
+	return &CBCDecrypter{cipher: cipher}
 }
 
 func NewCBCEncryptDecrypter(encrypter *CBCEncrypter, decrypter *CBCDecrypter) *CBCEncryptDecrypter {
