@@ -7,16 +7,19 @@ import (
 	"github.com/riete/crypto"
 )
 
+// GCMCrypter encrypts and decrypts data using GCM mode.
 type GCMCrypter struct {
 	aead           cipher.AEAD
 	codec          *crypto.CipherCodec
 	additionalData []byte
 }
 
+// Encrypt encrypts plaintext with a random nonce.
 func (c *GCMCrypter) Encrypt(plaintext string) ([]byte, error) {
 	return c.aead.Seal(nil, nil, str.ToBytes(plaintext), c.additionalData), nil
 }
 
+// EncryptToString encrypts plaintext and encodes the ciphertext.
 func (c *GCMCrypter) EncryptToString(plaintext string) (string, error) {
 	ciphertext, err := c.Encrypt(plaintext)
 	if err != nil {
@@ -25,6 +28,7 @@ func (c *GCMCrypter) EncryptToString(plaintext string) (string, error) {
 	return c.codec.Encode(ciphertext), nil
 }
 
+// Decrypt authenticates and decrypts the ciphertext.
 func (c *GCMCrypter) Decrypt(ciphertext []byte) (string, error) {
 	plaintext, err := c.aead.Open(nil, nil, ciphertext, c.additionalData)
 	if err != nil {
@@ -33,6 +37,7 @@ func (c *GCMCrypter) Decrypt(ciphertext []byte) (string, error) {
 	return str.FromBytes(plaintext), nil
 }
 
+// DecryptFromString decodes and decrypts the ciphertext.
 func (c *GCMCrypter) DecryptFromString(ciphertext string) (string, error) {
 	decoded, err := c.codec.Decode(ciphertext)
 	if err != nil {
@@ -41,6 +46,8 @@ func (c *GCMCrypter) DecryptFromString(ciphertext string) (string, error) {
 	return c.Decrypt(decoded)
 }
 
+// NewGCMCrypter creates a GCM crypter with random nonces and Base64 cipher codec by default.
+// Options can override the codec and configure additional authenticated data.
 func NewGCMCrypter(block cipher.Block, options ...GCMCrypterOption) (crypto.Crypter, error) {
 	aead, err := cipher.NewGCMWithRandomNonce(block)
 	if err != nil {

@@ -9,8 +9,10 @@ import (
 	"github.com/riete/crypto"
 )
 
+// CBCCrypterOption configures a CBC crypter.
 type CBCCrypterOption func(*CBCCrypter)
 
+// WithFixedIV configures a fixed IV for CBC encryption.
 func WithFixedIV(iv string) CBCCrypterOption {
 	return func(cbc *CBCCrypter) {
 		cbc.iv = func() []byte {
@@ -19,6 +21,7 @@ func WithFixedIV(iv string) CBCCrypterOption {
 	}
 }
 
+// WithRandomIV configures random IV generation with the given size.
 func WithRandomIV(size int) CBCCrypterOption {
 	return func(cbc *CBCCrypter) {
 		cbc.iv = func() []byte {
@@ -29,19 +32,22 @@ func WithRandomIV(size int) CBCCrypterOption {
 	}
 }
 
+// WithCipherCodec configures a custom ciphertext encoder and decoder.
 func WithCipherCodec(encoder crypto.Encoder, decoder crypto.Decoder) CBCCrypterOption {
 	return func(cbc *CBCCrypter) {
 		cbc.codec = crypto.NewCipherCodec(encoder, decoder)
 	}
 }
 
+// WithBase64CipherCodec configures standard Base64 ciphertext encoding and decoding.
 func WithBase64CipherCodec() CBCCrypterOption {
 	return func(cbc *CBCCrypter) {
 		cbc.codec = crypto.NewCipherCodec(base64.StdEncoding.EncodeToString, base64.StdEncoding.DecodeString)
 	}
 }
 
-func WithCipherHexCodec() CBCCrypterOption {
+// WithHexCipherCodec configures hexadecimal ciphertext encoding and decoding.
+func WithHexCipherCodec() CBCCrypterOption {
 	return func(cbc *CBCCrypter) {
 		cbc.codec = crypto.NewCipherCodec(hex.EncodeToString, hex.DecodeString)
 	}

@@ -8,21 +8,29 @@ import (
 	"github.com/riete/convert/str"
 )
 
+// Encoder converts ciphertext bytes into a string.
 type Encoder func([]byte) string
+
+// Decoder converts an encoded ciphertext string into bytes.
 type Decoder func(string) ([]byte, error)
+
+// CipherCodec bundles matching ciphertext encoding and decoding functions.
 type CipherCodec struct {
 	encoder Encoder
 	decoder Decoder
 }
 
+// Encode converts ciphertext bytes into a string.
 func (c *CipherCodec) Encode(b []byte) string {
 	return c.encoder(b)
 }
 
+// Decode converts an encoded ciphertext string into bytes.
 func (c *CipherCodec) Decode(s string) ([]byte, error) {
 	return c.decoder(s)
 }
 
+// NewCipherCodec creates a codec from matching encoder and decoder functions.
 func NewCipherCodec(encoder Encoder, decoder Decoder) *CipherCodec {
 	return &CipherCodec{
 		encoder: encoder,

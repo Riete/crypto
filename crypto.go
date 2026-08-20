@@ -1,8 +1,9 @@
 package crypto
 
+// Crypter provides binary and encoded string encryption and decryption.
 type Crypter interface {
-	Encrypt(string) ([]byte, error)
-	EncryptToString(string) (string, error)
-	Decrypt([]byte) (string, error)
-	DecryptFromString(string) (string, error)
+	Encrypt(plaintext string) ([]byte, error)
+	EncryptToString(plaintext string) (string, error)
+	Decrypt(ciphertext []byte) (string, error)
+	DecryptFromString(ciphertext string) (string, error)
 }
