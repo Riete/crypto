@@ -11,7 +11,7 @@ import (
 
 func TestGCMEncryptDecrypt(t *testing.T) {
 	block := crypto.NewAESCipher("abcdwkjidjfkovdf")
-	crypter, err := NewGCMCrypter(block)
+	crypter, err := NewCrypter(block)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestGCMEncryptDecrypt(t *testing.T) {
 
 func TestGCMEncryptDecryptWithDefaultCodec(t *testing.T) {
 	block := crypto.NewAESCipher("abcdwkjidjfkovdf")
-	crypter, err := NewGCMCrypter(block)
+	crypter, err := NewCrypter(block)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestGCMEncryptDecryptWithDefaultCodec(t *testing.T) {
 
 func TestGCMEncryptDecryptWithHexCodec(t *testing.T) {
 	block := crypto.NewAESCipher("abcdwkjidjfkovdf")
-	crypter, err := NewGCMCrypter(block, WithCipherHexCodec())
+	crypter, err := NewCrypter(block, WithHexCipherCodec())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestGCMEncryptDecryptWithHexCodec(t *testing.T) {
 
 func TestGCMRejectsModifiedCiphertext(t *testing.T) {
 	block := crypto.NewAESCipher("abcdwkjidjfkovdf")
-	crypter, err := NewGCMCrypter(block)
+	crypter, err := NewCrypter(block)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestGCMRejectsModifiedCiphertext(t *testing.T) {
 }
 
 func TestGCMRejectsShortCiphertext(t *testing.T) {
-	crypter, err := NewGCMCrypter(crypto.NewAESCipher("abcdwkjidjfkovdf"))
+	crypter, err := NewCrypter(crypto.NewAESCipher("abcdwkjidjfkovdf"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestGCMRejectsShortCiphertext(t *testing.T) {
 }
 
 func TestGCMRejectsModifiedNonce(t *testing.T) {
-	crypter, err := NewGCMCrypter(crypto.NewAESCipher("abcdwkjidjfkovdf"))
+	crypter, err := NewCrypter(crypto.NewAESCipher("abcdwkjidjfkovdf"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestGCMRejectsModifiedNonce(t *testing.T) {
 func TestGCMAdditionalData(t *testing.T) {
 	block := crypto.NewAESCipher("abcdwkjidjfkovdf")
 	additionalData := []byte("version=1;user=42")
-	crypter, err := NewGCMCrypter(block, WithAdditionalData(additionalData))
+	crypter, err := NewCrypter(block, WithAdditionalData(additionalData))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func TestGCMAdditionalData(t *testing.T) {
 		t.Fatalf("decrypted plaintext mismatch: got %q", plaintext)
 	}
 
-	wrongCrypter, err := NewGCMCrypter(block, WithAdditionalData([]byte("version=1;user=43")))
+	wrongCrypter, err := NewCrypter(block, WithAdditionalData([]byte("version=1;user=43")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +170,7 @@ func TestGCMAdditionalData(t *testing.T) {
 }
 
 func TestGCMDecryptFromStringReturnsDecodeError(t *testing.T) {
-	crypter, err := NewGCMCrypter(crypto.NewAESCipher("abcdwkjidjfkovdf"))
+	crypter, err := NewCrypter(crypto.NewAESCipher("abcdwkjidjfkovdf"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestGCMDecryptFromStringReturnsDecodeError(t *testing.T) {
 }
 
 func TestGCMRequiresAESBlock(t *testing.T) {
-	if _, err := NewGCMCrypter(crypto.NewDESCipher("12345678")); err == nil {
+	if _, err := NewCrypter(crypto.NewDESCipher("12345678")); err == nil {
 		t.Fatal("non-AES block was accepted")
 	}
 }
